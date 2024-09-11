@@ -11,7 +11,7 @@ fn main() {
 
         input.clear();
         io::stdin().read_line(&mut input).expect("failed to read input");
-        let tokens: Vec<&str> = input.trim().split_whitespace().collect();
+        let tokens: Vec<String> = tokenize(&input);
 
 
         if tokens[0] == "echo"
@@ -21,7 +21,24 @@ fn main() {
     }
 }
 
-fn echo(input: &[&str]) {
+fn tokenize(input: &String) -> Vec<String>
+{
+    let tokens: Vec<&str> = input.trim().split_whitespace().collect();
+    let mut result: Vec<String> = Vec::new();
+    for token in tokens
+    {
+        if token == "$USER"
+        {
+            result.push("LEOZINHO".to_string());
+        }
+        else {
+            result.push(token.to_string());
+        }
+    }
+    result
+}
+
+fn echo(input: &Vec<String>) {
     if input.len() == 1
     {
         println!();
