@@ -6,7 +6,7 @@ fn main() {
     let mut input = String::new();
     while input.trim() != "exit"
     {
-        print!("USER@MACHINE:{}> ", env::current_dir().unwrap().display());
+        print!("{}@MACHINE:{}> ", get_user(), env::current_dir().unwrap().display());
         io::stdout().flush().expect("failed to flush output");
 
         input.clear();
@@ -21,6 +21,14 @@ fn main() {
     }
 }
 
+fn get_user() -> String
+{
+    if let Ok(user) = env::var("USER")
+    {
+        return user;
+    }
+    "unknown".to_string()
+}
 fn tokenize(input: &String) -> Vec<String>
 {
     let tokens: Vec<&str> = input.trim().split_whitespace().collect();
@@ -29,7 +37,7 @@ fn tokenize(input: &String) -> Vec<String>
     {
         if token == "$USER"
         {
-            result.push("LEOZINHO".to_string());
+            result.push(get_user());
         }
         else {
             result.push(token.to_string());
