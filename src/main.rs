@@ -31,6 +31,10 @@ fn tokenize(input: &String) -> Vec<String>
         {
             result.push(get_env_variable(token[1..].to_string()));
         }
+        else if token.starts_with("~/") || (token == "~" && token.len() == 1)
+        {
+            result.push(get_env_variable("HOME".to_string()))
+        }
         else
         {
             result.push(token.to_string());
