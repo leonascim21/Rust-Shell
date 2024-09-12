@@ -6,7 +6,7 @@ fn main() {
     let mut input = String::new();
     while input.trim() != "exit"
     {
-        print!("{}@MACHINE:{}> ", get_user(), env::current_dir().unwrap().display());
+        print!("{}@{}:{}> ", get_env_variable("USER".to_string()), get_env_variable("HOSTNAME".to_string()), get_env_variable("PWD".to_string()));
         io::stdout().flush().expect("failed to flush output");
 
         input.clear();
@@ -21,32 +21,26 @@ fn main() {
     }
 }
 
-fn get_user() -> String
-{
-    if let Ok(user) = env::var("USER")
-    {
-        return user;
-    }
-    "unknown".to_string()
-}
 fn tokenize(input: &String) -> Vec<String>
 {
     let tokens: Vec<&str> = input.trim().split_whitespace().collect();
     let mut result: Vec<String> = Vec::new();
     for token in tokens
     {
-        if token == "$USER"
+        if token.starts_with('$')
         {
-            result.push(get_user());
+            result.push(get_env_variable(token[1..].to_string()));
         }
-        else {
+        else
+        {
             result.push(token.to_string());
         }
     }
     result
 }
 
-fn echo(input: &Vec<String>) {
+fn echo(input: &Vec<String>)
+{
     if input.len() == 1
     {
         println!();
@@ -60,4 +54,13 @@ fn echo(input: &Vec<String>) {
         index += 1;
     }
     println!("{}", input[index]);
+}
+
+fn get_env_variable(input: String) -> String
+{
+    if let Ok(output) = env::var(input)
+    {
+        return output;
+    }
+    "unknown".to_string()
 }
