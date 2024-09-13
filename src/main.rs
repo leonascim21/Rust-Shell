@@ -1,6 +1,8 @@
-use std::env;
+use std::ffi::CString;
 use std::io;
 use std::io::Write;
+use std::{env};
+use std::path::Path;
 
 fn main() {
     let mut input = String::new();
@@ -21,6 +23,8 @@ fn main() {
 
         if tokens[0] == "echo" {
             echo(&tokens);
+        } else {
+            //external_command(tokens);
         }
     }
 }
@@ -32,7 +36,7 @@ fn tokenize(input: &String) -> Vec<String> {
         if token.starts_with('$') {
             result.push(get_env_variable(token[1..].to_string()));
         } else if token.starts_with("~/") || (token == "~" && token.len() == 1) {
-            result.push(get_env_variable("HOME".to_string()))
+            result.push(get_env_variable("HOME".to_string()) + &token[1..])
         } else {
             result.push(token.to_string());
         }
@@ -59,4 +63,18 @@ fn get_env_variable(input: String) -> String {
         return output;
     }
     "unknown".to_string()
+}
+
+fn find_path(input: &String) -> Option<CString> {
+    if let Ok(paths) = env::var("PATH") {
+        for path in paths.split(':') {
+            let full_path = Path::new(path).join(input);
+            if full_path.exists() {
+                if let Ok(c_string) = CString::new(full_path.to_string_lossy().into_owned()) {
+                    return Some(c_string);
+                }
+            }
+        }
+    }
+    None
 }
