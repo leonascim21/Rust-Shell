@@ -1,3 +1,5 @@
+use libc::{fork, waitpid};
+use nix::unistd::execv;
 use std::ffi::CString;
 use std::io;
 use std::io::Write;
@@ -24,7 +26,7 @@ fn main() {
         if tokens[0] == "echo" {
             echo(&tokens);
         } else {
-            //external_command(tokens);
+            external_command(tokens);
         }
     }
 }
@@ -63,6 +65,29 @@ fn get_env_variable(input: String) -> String {
         return output;
     }
     "unknown".to_string()
+}
+
+fn external_command(input: Vec<String>) {
+    if let Some(path) = find_path(&input[0]) {
+        let mut args: Vec<CString> = Vec::new();
+        for argument in input.clone() {
+            args.push(CString::new(argument).expect("Invalid CString"));
+        }
+
+        let child = unsafe { fork() };
+        if child == 0 {
+            execv(&*path, &*args).expect("Command Execution Failed");
+        } else if child > 0 {
+            let mut status = 0;
+            unsafe {
+                waitpid(child, &mut status, 0);
+            }
+        } else {
+            eprintln!("External Command Failed")
+        }
+    } else {
+        println!("Command Path Not Found")
+    }
 }
 
 fn find_path(input: &String) -> Option<CString> {
