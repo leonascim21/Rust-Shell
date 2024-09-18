@@ -1,9 +1,9 @@
 use libc::{fork, waitpid};
 use nix::unistd::execv;
+use std::env;
 use std::ffi::CString;
 use std::io;
 use std::io::Write;
-use std::{env};
 use std::path::Path;
 
 fn main() {
@@ -23,11 +23,7 @@ fn main() {
             .expect("failed to read input");
         let tokens: Vec<String> = tokenize(&input);
 
-        if tokens[0] == "echo" {
-            echo(&tokens);
-        } else {
             external_command(tokens);
-        }
     }
 }
 
@@ -44,20 +40,6 @@ fn tokenize(input: &String) -> Vec<String> {
         }
     }
     result
-}
-
-fn echo(input: &Vec<String>) {
-    if input.len() == 1 {
-        println!();
-        return;
-    }
-    let mut index = 1;
-    let length = input.len();
-    while index < length - 1 {
-        print!("{} ", input[index]);
-        index += 1;
-    }
-    println!("{}", input[index]);
 }
 
 fn get_env_variable(input: String) -> String {
