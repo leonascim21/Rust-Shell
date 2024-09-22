@@ -1,12 +1,13 @@
-use libc::{fork, waitpid};
-use std::env;
+use libc::{close, dup2, execv, exit, fork, pipe, waitpid, STDIN_FILENO, STDOUT_FILENO};
 use std::ffi::CString;
 use std::fs::{File, OpenOptions};
 use std::io;
 use std::io::Write;
 use std::os::fd::{AsRawFd, RawFd};
+use std::os::raw::c_int;
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::Path;
+use std::{env, ptr};
 
 fn main() {
     let mut input = String::new();
@@ -25,8 +26,10 @@ fn main() {
             .expect("failed to read input");
         let tokens: Vec<String> = tokenize(&input);
 
-        if tokens.iter().any(|s| s == ">" || s == "<") {
+        if tokens.iter().any( |s | s == ">" || s == "<") {
             io_redirection(tokens);
+        } else if tokens.iter().any(| s | s == "|") {
+            execute_piping(tokens)
         } else {
             external_command(tokens, None, None);
         }
@@ -56,40 +59,37 @@ fn get_env_variable(input: String) -> String {
 }
 
 fn external_command(input: Vec<String>, input_fd: Option<RawFd>, output_fd: Option<RawFd>) {
+    //TODO: FIX OUT OF BOUNDS (&INPUT[0])
     if let Some(path) = find_path(&input[0]) {
         let args_cstr: Vec<CString> = input
             .iter()
             .map(|arg| CString::new(arg.as_str()).expect("Failed to convert to CString"))
             .collect();
 
-        let mut arg_ptrs: Vec<*const libc::c_char> = args_cstr
-            .iter()
-            .map(|arg| arg.as_ptr())
-            .collect();
-        arg_ptrs.push(std::ptr::null());
-
+        let mut arg_ptrs: Vec<*const libc::c_char> =
+            args_cstr.iter().map(|arg| arg.as_ptr()).collect();
+        arg_ptrs.push(ptr::null());
 
         let child = unsafe { fork() };
         if child == 0 {
             if let Some(fd) = input_fd {
                 unsafe {
-                    libc::dup2(fd, libc::STDIN_FILENO);
-                    libc::close(fd);
+                    dup2(fd, STDIN_FILENO);
+                    close(fd);
                 }
             }
 
             if let Some(fd) = output_fd {
                 unsafe {
-                    libc::dup2(fd, libc::STDOUT_FILENO);
-                    libc::close(fd);
+                    dup2(fd, STDOUT_FILENO);
+                    close(fd);
                 }
             }
 
-            unsafe { libc::execv(path.as_ptr(), arg_ptrs.as_ptr()) };
+            unsafe { execv(path.as_ptr(), arg_ptrs.as_ptr()) };
             println!("Command execution failed");
             std::process::exit(1);
         } else if child > 0 {
-            // Parent process
             let mut status = 0;
             unsafe {
                 waitpid(child, &mut status, 0);
@@ -129,7 +129,7 @@ fn io_redirection(input: Vec<String>) {
                 if i < input.len() {
                     input_file = Some(input[i].clone());
                 } else {
-                    eprintln!("No input file specified");
+                    println!("No input file specified");
                     return;
                 }
             }
@@ -138,7 +138,7 @@ fn io_redirection(input: Vec<String>) {
                 if i < input.len() {
                     output_file = Some(input[i].clone());
                 } else {
-                    eprintln!("No output file specified");
+                    println!("No output file specified");
                     return;
                 }
             }
@@ -188,4 +188,67 @@ fn io_redirection(input: Vec<String>) {
 
     drop(input_file_handle);
     drop(output_file_handle);
+}
+
+fn execute_piping(input: Vec<String>) {
+    let commands: Vec<Vec<String>> = input
+        .split(|token| token == "|")
+        .map(|token| token.to_vec())
+        .collect();
+    let num_commands = commands.len();
+    let mut pipe_fd: Vec<[c_int; 2]> = vec![[0, 0]; num_commands - 1];
+
+    for i in 0..num_commands - 1 {
+        if unsafe { pipe(pipe_fd[i].as_mut_ptr()) } == -1 {
+            println!("Failed to create pipe");
+            return;
+        }
+    }
+
+    for i in 0..num_commands {
+        let child = unsafe { fork() };
+        if child == 0 {
+
+            if i > 0 {
+                unsafe {
+                    dup2(pipe_fd[i - 1][0], STDIN_FILENO);
+                    close(pipe_fd[i - 1][0]);
+                }
+            }
+
+            if i < num_commands - 1 {
+                unsafe {
+                    dup2(pipe_fd[i][1], STDOUT_FILENO);
+                    close(pipe_fd[i][1]);
+                }
+            }
+
+            for j in 0..num_commands - 1 {
+                unsafe {
+                    close(pipe_fd[j][0]);
+                    close(pipe_fd[j][1]);
+                }
+            }
+
+            external_command(commands[i].clone(), None, None);
+            unsafe {
+                exit(0);
+            };
+        }
+    }
+
+    for i in 0..num_commands - 1 {
+        unsafe {
+            close(pipe_fd[i][0]);
+            close(pipe_fd[i][1]);
+        }
+    }
+
+    for i in 0..num_commands {
+        let mut status = 0;
+        unsafe {
+            //Use -1 for PID to wait for ANY child process (not specific)
+            waitpid(-1, &mut status, 0);
+        }
+    }
 }
