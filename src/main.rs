@@ -29,6 +29,12 @@ fn main() {
             .expect("failed to read input");
         let mut tokens: Vec<String> = tokenize(&input);
 
+        //Internal Commands
+        if tokens[0] == "jobs" {
+            jobs(&background_processes);
+        }
+
+        //External Commands
         let mut is_background = false;
         if tokens.len() > 0 && tokens[tokens.len() - 1] == "&" {
             tokens.pop();
@@ -117,7 +123,9 @@ fn external_command(
 
             unsafe { execv(path.as_ptr(), arg_ptrs.as_ptr()) };
             println!("Command execution failed");
-            unsafe { exit(1); }
+            unsafe {
+                exit(1);
+            }
         } else if child > 0 {
             if is_background {
                 println!("[{}] [{}]", job_number, child);
@@ -293,12 +301,10 @@ fn execute_piping(
                 exit(0);
             };
         } else if child > 0 {
-            if is_background && i == num_commands - 1
-            {
+            if is_background && i == num_commands - 1 {
                 println!("[{}] [{}]", job_number, child);
                 background_processes.push((child, input.join(" "), job_number));
-            }
-            else if !is_background {
+            } else if !is_background {
                 let mut status = 0;
                 unsafe {
                     waitpid(child, &mut status, 0);
@@ -328,14 +334,24 @@ fn execute_piping(
 fn check_background_processes(background_processes: &mut Vec<(i32, String, i32)>) {
     let mut status = 0;
     //Looping in reverse so no out of bounds crash if an item is removed
-    for i in (0..background_processes.len()).rev()
-    {
+    for i in (0..background_processes.len()).rev() {
         let (pid, command, job_num) = background_processes[i].clone();
-        let result =  unsafe { waitpid(pid, &mut status, WNOHANG) };
-        if result == pid
-        {
+        let result = unsafe { waitpid(pid, &mut status, WNOHANG) };
+        if result == pid {
             println!("[{}] + done [{}]", job_num, command);
             background_processes.remove(i);
         }
     }
 }
+
+fn jobs(background_processes: &Vec<(i32, String, i32)>) {
+    if background_processes.is_empty() {
+        println!("No background processes running")
+    } else {
+        for i in 0..background_processes.len() {
+            println!("[{}] + [{}][{}]", background_processes[i].2, background_processes[i].0, background_processes[i].1);
+        }
+    }
+}
+
+//Perguntar se eu preciso pipe e io redirect o jobs
