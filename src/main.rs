@@ -1,4 +1,4 @@
-use libc::{close, dup2, execv, exit, fork, pipe, waitpid, STDIN_FILENO, STDOUT_FILENO};
+use libc::{close, dup2, execv, exit, fork, pipe, waitpid, STDIN_FILENO, STDOUT_FILENO, WNOHANG};
 use std::ffi::CString;
 use std::fs::{File, OpenOptions};
 use std::io;
@@ -53,6 +53,8 @@ fn main() {
         if is_background {
             job_number += 1;
         }
+
+        check_background_processes(&mut background_processes);
     }
 }
 
@@ -115,7 +117,7 @@ fn external_command(
 
             unsafe { execv(path.as_ptr(), arg_ptrs.as_ptr()) };
             println!("Command execution failed");
-            std::process::exit(1);
+            unsafe { exit(1); }
         } else if child > 0 {
             if is_background {
                 println!("[{}] [{}]", job_number, child);
@@ -234,6 +236,7 @@ fn io_redirection(
     drop(output_file_handle);
 }
 
+//TODO: when background processing job number printed i times
 fn execute_piping(
     input: Vec<String>,
     is_background: bool,
@@ -305,7 +308,7 @@ fn execute_piping(
     }
 
     if !is_background {
-        for i in 0..num_commands {
+        for _ in 0..num_commands {
             let mut status = 0;
             unsafe {
                 //Use -1 for PID to wait for ANY child process (not specific)
@@ -318,6 +321,21 @@ fn execute_piping(
         unsafe {
             close(pipe_fd[i][0]);
             close(pipe_fd[i][1]);
+        }
+    }
+}
+
+fn check_background_processes(background_processes: &mut Vec<(i32, String, i32)>) {
+    let mut status = 0;
+    //Looping in reverse so no out of bounds crash if an item is removed
+    for i in (0..background_processes.len()).rev()
+    {
+        let (pid, command, job_num) = background_processes[i].clone();
+        let result =  unsafe { waitpid(pid, &mut status, WNOHANG) };
+        if result == pid
+        {
+            println!("[{}] + done [{}]", job_num, command);
+            background_processes.remove(i);
         }
     }
 }
