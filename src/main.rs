@@ -32,6 +32,12 @@ fn main() {
             .expect("failed to read input");
         let mut tokens: Vec<String> = tokenize(&input);
 
+        let mut is_background = false;
+        if tokens.len() > 0 && tokens[tokens.len() - 1] == "&" {
+            tokens.pop();
+            is_background = true;
+        }
+
         //Internal Commands
         if tokens[0] == "jobs" {
             jobs(&background_processes);
@@ -43,13 +49,7 @@ fn main() {
         }
 
         //External Commands
-        let mut is_background = false;
-        if tokens.len() > 0 && tokens[tokens.len() - 1] == "&" {
-            tokens.pop();
-            is_background = true;
-        }
-
-        if tokens.iter().any(|s| s == ">" || s == "<") {
+        else if tokens.iter().any(|s| s == ">" || s == "<") {
             io_redirection(tokens, is_background, &mut background_processes, job_number);
         } else if tokens.iter().any(|s| s == "|") {
             execute_piping(tokens, is_background, &mut background_processes, job_number);
@@ -416,3 +416,4 @@ fn exit_shell(cmd_history: Vec<String>, background_processes: Vec<(i32, String, 
 
 //Perguntar se eu preciso pipe e io redirect o jobs
 //Aceito jobs se tiver arguments?
+//hostname unknown
