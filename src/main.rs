@@ -11,6 +11,10 @@ use std::{env, ptr};
 
 fn main() {
     let mut input = String::new();
+    let mut job_number = 1;
+    // Vector stores PID, Command, Job Number
+    let mut background_processes: Vec<(i32, String, i32)> = Vec::new();
+
     while input.trim() != "exit" {
         print!(
             "{}@{}:{}> ",
@@ -19,19 +23,35 @@ fn main() {
             get_env_variable("PWD".to_string())
         );
         io::stdout().flush().expect("failed to flush output");
-
         input.clear();
         io::stdin()
             .read_line(&mut input)
             .expect("failed to read input");
-        let tokens: Vec<String> = tokenize(&input);
+        let mut tokens: Vec<String> = tokenize(&input);
 
-        if tokens.iter().any( |s | s == ">" || s == "<") {
-            io_redirection(tokens);
-        } else if tokens.iter().any(| s | s == "|") {
-            execute_piping(tokens)
+        let mut is_background = false;
+        if tokens.len() > 0 && tokens[tokens.len() - 1] == "&" {
+            tokens.pop();
+            is_background = true;
+        }
+
+        if tokens.iter().any(|s| s == ">" || s == "<") {
+            io_redirection(tokens, is_background, &mut background_processes, job_number);
+        } else if tokens.iter().any(|s| s == "|") {
+            execute_piping(tokens, is_background, &mut background_processes, job_number);
         } else {
-            external_command(tokens, None, None);
+            external_command(
+                tokens,
+                None,
+                None,
+                is_background,
+                &mut background_processes,
+                job_number,
+            );
+        }
+
+        if is_background {
+            job_number += 1;
         }
     }
 }
@@ -58,7 +78,14 @@ fn get_env_variable(input: String) -> String {
     "unknown".to_string()
 }
 
-fn external_command(input: Vec<String>, input_fd: Option<RawFd>, output_fd: Option<RawFd>) {
+fn external_command(
+    input: Vec<String>,
+    input_fd: Option<RawFd>,
+    output_fd: Option<RawFd>,
+    is_background: bool,
+    background_processes: &mut Vec<(i32, String, i32)>,
+    job_number: i32,
+) {
     //TODO: FIX OUT OF BOUNDS (&INPUT[0])
     if let Some(path) = find_path(&input[0]) {
         let args_cstr: Vec<CString> = input
@@ -90,9 +117,14 @@ fn external_command(input: Vec<String>, input_fd: Option<RawFd>, output_fd: Opti
             println!("Command execution failed");
             std::process::exit(1);
         } else if child > 0 {
-            let mut status = 0;
-            unsafe {
-                waitpid(child, &mut status, 0);
+            if is_background {
+                println!("[{}] [{}]", job_number, child);
+                background_processes.push((child, input.join(" "), job_number));
+            } else {
+                let mut status = 0;
+                unsafe {
+                    waitpid(child, &mut status, 0);
+                }
             }
         } else {
             println!("External Command Failed");
@@ -116,7 +148,12 @@ fn find_path(input: &String) -> Option<CString> {
     None
 }
 
-fn io_redirection(input: Vec<String>) {
+fn io_redirection(
+    input: Vec<String>,
+    is_background: bool,
+    background_processes: &mut Vec<(i32, String, i32)>,
+    job_number: i32,
+) {
     let mut command = Vec::new();
     let mut input_file = None;
     let mut output_file = None;
@@ -184,13 +221,25 @@ fn io_redirection(input: Vec<String>) {
         (None, None)
     };
 
-    external_command(command, input_fd, output_fd);
+    external_command(
+        command,
+        input_fd,
+        output_fd,
+        is_background,
+        background_processes,
+        job_number,
+    );
 
     drop(input_file_handle);
     drop(output_file_handle);
 }
 
-fn execute_piping(input: Vec<String>) {
+fn execute_piping(
+    input: Vec<String>,
+    is_background: bool,
+    background_processes: &mut Vec<(i32, String, i32)>,
+    job_number: i32,
+) {
     let commands: Vec<Vec<String>> = input
         .split(|token| token == "|")
         .map(|token| token.to_vec())
@@ -208,7 +257,6 @@ fn execute_piping(input: Vec<String>) {
     for i in 0..num_commands {
         let child = unsafe { fork() };
         if child == 0 {
-
             if i > 0 {
                 unsafe {
                     dup2(pipe_fd[i - 1][0], STDIN_FILENO);
@@ -230,10 +278,39 @@ fn execute_piping(input: Vec<String>) {
                 }
             }
 
-            external_command(commands[i].clone(), None, None);
+            external_command(
+                commands[i].clone(),
+                None,
+                None,
+                is_background,
+                background_processes,
+                job_number,
+            );
             unsafe {
                 exit(0);
             };
+        } else if child > 0 {
+            if is_background && i == num_commands - 1
+            {
+                println!("[{}] [{}]", job_number, child);
+                background_processes.push((child, input.join(" "), job_number));
+            }
+            else if !is_background {
+                let mut status = 0;
+                unsafe {
+                    waitpid(child, &mut status, 0);
+                }
+            }
+        }
+    }
+
+    if !is_background {
+        for i in 0..num_commands {
+            let mut status = 0;
+            unsafe {
+                //Use -1 for PID to wait for ANY child process (not specific)
+                waitpid(-1, &mut status, 0);
+            }
         }
     }
 
@@ -241,14 +318,6 @@ fn execute_piping(input: Vec<String>) {
         unsafe {
             close(pipe_fd[i][0]);
             close(pipe_fd[i][1]);
-        }
-    }
-
-    for i in 0..num_commands {
-        let mut status = 0;
-        unsafe {
-            //Use -1 for PID to wait for ANY child process (not specific)
-            waitpid(-1, &mut status, 0);
         }
     }
 }
