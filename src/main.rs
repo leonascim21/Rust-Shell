@@ -66,6 +66,7 @@ fn main() {
                 is_background,
                 &mut background_processes,
                 job_number,
+                false
             );
         }
 
@@ -107,6 +108,7 @@ fn external_command(
     is_background: bool,
     background_processes: &mut Vec<(i32, String, i32)>,
     job_number: i32,
+    piping: bool
 ) {
     if let Some(path) = find_path(&input[0]) {
         let args_cstr: Vec<CString> = input
@@ -140,7 +142,7 @@ fn external_command(
                 exit(1);
             }
         } else if child > 0 {
-            if is_background {
+            if is_background && !piping {
                 println!("[{}] [{}]", job_number, child);
                 background_processes.push((child, input.join(" "), job_number));
             } else {
@@ -251,13 +253,13 @@ fn io_redirection(
         is_background,
         background_processes,
         job_number,
+        false
     );
 
     drop(input_file_handle);
     drop(output_file_handle);
 }
 
-//TODO: when background processing job number printed i times
 fn execute_piping(
     input: Vec<String>,
     is_background: bool,
@@ -309,6 +311,7 @@ fn execute_piping(
                 is_background,
                 background_processes,
                 job_number,
+                true
             );
             unsafe {
                 exit(0);
@@ -418,6 +421,8 @@ fn exit_shell(cmd_history: Vec<String>, background_processes: Vec<(i32, String, 
     }
 }
 
+//PERGUNTAS OFFICE HOURS
 //Perguntar se eu preciso pipe e io redirect o jobs
 //Aceito jobs se tiver arguments?
 //hostname unknown
+//adiciono comentarios?
