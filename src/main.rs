@@ -1,4 +1,7 @@
-use libc::{close, dup2, execv, exit, fork, pipe, waitpid, STDIN_FILENO, STDOUT_FILENO, WNOHANG};
+use libc::{
+    close, dup2, execv, exit, fork, pipe, waitpid, STDIN_FILENO, STDOUT_FILENO, WNOHANG,
+};
+use std::env::{current_dir, set_current_dir, set_var};
 use std::ffi::CString;
 use std::fs::{File, OpenOptions};
 use std::io;
@@ -32,6 +35,8 @@ fn main() {
         //Internal Commands
         if tokens[0] == "jobs" {
             jobs(&background_processes);
+        } else if tokens[0] == "cd" {
+            cd(&tokens);
         }
 
         //External Commands
@@ -349,7 +354,41 @@ fn jobs(background_processes: &Vec<(i32, String, i32)>) {
         println!("No background processes running")
     } else {
         for i in 0..background_processes.len() {
-            println!("[{}] + [{}][{}]", background_processes[i].2, background_processes[i].0, background_processes[i].1);
+            println!(
+                "[{}] + [{}][{}]",
+                background_processes[i].2, background_processes[i].0, background_processes[i].1
+            );
+        }
+    }
+}
+
+fn cd(input: &Vec<String>) {
+    if input.len() > 2
+    {
+        println!("Too many arguments provided for cd");
+        return;
+    }
+
+    let target_dir = if input.len() == 1 {
+        get_env_variable("HOME".to_string())
+    } else {
+        input[1].clone()
+    };
+
+    let path = Path::new(&target_dir);
+    if !path.exists() {
+        println!("Target does not exist");
+    }
+    else if !path.is_dir()
+    {
+        println!("Target is not a directory")
+    }
+    else {
+        set_current_dir(target_dir).expect("Failed to change directory");
+        if let Ok(current_dir) = current_dir() {
+            if let Some(current_dir_str) = current_dir.to_str() {
+                set_var("PWD", current_dir_str);
+            }
         }
     }
 }
