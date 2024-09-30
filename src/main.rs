@@ -32,6 +32,11 @@ fn main() {
             .expect("failed to read input");
         let mut tokens: Vec<String> = tokenize(&input);
 
+        if tokens.is_empty()
+        {
+            print!("");
+            continue;
+        }
         let mut is_background = false;
         if tokens.len() > 0 && tokens[tokens.len() - 1] == "&" {
             tokens.pop();
@@ -103,7 +108,6 @@ fn external_command(
     background_processes: &mut Vec<(i32, String, i32)>,
     job_number: i32,
 ) {
-    //TODO: FIX OUT OF BOUNDS (&INPUT[0])
     if let Some(path) = find_path(&input[0]) {
         let args_cstr: Vec<CString> = input
             .iter()
