@@ -1,6 +1,4 @@
-use libc::{
-    close, dup2, execv, exit, fork, pipe, waitpid, STDIN_FILENO, STDOUT_FILENO, WNOHANG,
-};
+use libc::{close, dup2, execv, exit, fork, pipe, waitpid, STDIN_FILENO, STDOUT_FILENO, WNOHANG};
 use std::env::{current_dir, set_current_dir, set_var};
 use std::ffi::CString;
 use std::fs::{File, OpenOptions};
@@ -14,11 +12,13 @@ use std::{env, ptr};
 
 fn main() {
     let mut input = String::new();
+    let mut cmd_history: Vec<String> = Vec::new();
+
     let mut job_number = 1;
     // Vector stores PID, Command, Job Number
     let mut background_processes: Vec<(i32, String, i32)> = Vec::new();
 
-    while input.trim() != "exit" {
+    loop {
         print!(
             "{}@{}:{}> ",
             get_env_variable("USER".to_string()),
@@ -37,6 +37,9 @@ fn main() {
             jobs(&background_processes);
         } else if tokens[0] == "cd" {
             cd(&tokens);
+        } else if tokens[0] == "exit" {
+            exit_shell(cmd_history, background_processes);
+            return;
         }
 
         //External Commands
@@ -61,6 +64,7 @@ fn main() {
             );
         }
 
+        cmd_history.push(input.trim().to_string());
         if is_background {
             job_number += 1;
         }
@@ -363,8 +367,7 @@ fn jobs(background_processes: &Vec<(i32, String, i32)>) {
 }
 
 fn cd(input: &Vec<String>) {
-    if input.len() > 2
-    {
+    if input.len() > 2 {
         println!("Too many arguments provided for cd");
         return;
     }
@@ -378,12 +381,9 @@ fn cd(input: &Vec<String>) {
     let path = Path::new(&target_dir);
     if !path.exists() {
         println!("Target does not exist");
-    }
-    else if !path.is_dir()
-    {
+    } else if !path.is_dir() {
         println!("Target is not a directory")
-    }
-    else {
+    } else {
         set_current_dir(target_dir).expect("Failed to change directory");
         if let Ok(current_dir) = current_dir() {
             if let Some(current_dir_str) = current_dir.to_str() {
@@ -393,4 +393,26 @@ fn cd(input: &Vec<String>) {
     }
 }
 
+fn exit_shell(cmd_history: Vec<String>, background_processes: Vec<(i32, String, i32)>) {
+    if background_processes.len() > 0 {
+        for i in 0..background_processes.len() {
+            let mut status = 0;
+            unsafe {
+                waitpid(background_processes[i].0, &mut status, 0);
+            }
+        }
+    }
+
+    if cmd_history.is_empty() {
+        println!("No valid command history")
+    } else if cmd_history.len() < 3 {
+        print!("{}", cmd_history[cmd_history.len() - 1]);
+    } else {
+        for i in cmd_history.len() - 3..cmd_history.len() {
+            println!("{}", cmd_history[i]);
+        }
+    }
+}
+
 //Perguntar se eu preciso pipe e io redirect o jobs
+//Aceito jobs se tiver arguments?
