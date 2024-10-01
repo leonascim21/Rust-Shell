@@ -10,6 +10,11 @@
 root/
     src/
         main.rs
+        external_command_exec.rs
+        internal_commands.rs
+        io_redirection.rs
+        piping.rs
+        tokenization.rs
     .gitignore
     cargo.lock
     cargo.toml
