@@ -23,7 +23,7 @@ root/
 - **Dependencies**: libc version 0.2.159
 
 ### Compilation and Execution
-Navigate to project directory and input following command
+Navigate to project directory and run the following command
 ```bash
 cargo run
 ```
