@@ -3,6 +3,9 @@
 ## Group Members
 - **Leonardo Do Nascimento**: lmd22j@fsu.edu
 
+## Division of Labor
+- All parts completed by Leonardo Do Nascimento
+
 
 
 ## File Listing
