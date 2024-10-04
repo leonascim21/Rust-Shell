@@ -1,17 +1,17 @@
-mod tokenization;
-mod piping;
-mod io_redirection;
-mod internal_commands;
 mod external_command_exec;
+mod internal_commands;
+mod io_redirection;
+mod piping;
+mod tokenization;
 
-use std::io;
-use std::io::Write;
-use libc::{waitpid, WNOHANG};
 use crate::external_command_exec::external_command;
 use crate::internal_commands::{cd, exit_shell, jobs};
 use crate::io_redirection::io_redirection;
 use crate::piping::execute_piping;
 use crate::tokenization::{get_env_variable, tokenize};
+use libc::{waitpid, WNOHANG};
+use std::io;
+use std::io::Write;
 
 fn main() {
     let mut input = String::new();
@@ -20,6 +20,7 @@ fn main() {
     let mut job_number = 1;
     // Vector stores PID, Command, Job Number
     let mut background_processes: Vec<(i32, String, i32)> = Vec::new();
+    let mut is_success: bool = false;
 
     loop {
         print!(
@@ -35,8 +36,7 @@ fn main() {
             .expect("failed to read input");
         let mut tokens: Vec<String> = tokenize(&input);
 
-        if tokens.is_empty()
-        {
+        if tokens.is_empty() {
             print!("");
             continue;
         }
@@ -49,31 +49,35 @@ fn main() {
         //Internal Commands
         if tokens[0] == "jobs" {
             jobs(&background_processes);
+            is_success = true;
         } else if tokens[0] == "cd" {
-            cd(&tokens);
+            is_success = cd(&tokens);
         } else if tokens[0] == "exit" {
             exit_shell(cmd_history, background_processes);
             return;
         }
-
         //External Commands
         else if tokens.iter().any(|s| s == ">" || s == "<") {
-            io_redirection(tokens, is_background, &mut background_processes, job_number);
+            is_success =
+                io_redirection(tokens, is_background, &mut background_processes, job_number);
         } else if tokens.iter().any(|s| s == "|") {
             execute_piping(tokens, is_background, &mut background_processes, job_number);
         } else {
-            external_command(
+            is_success = external_command(
                 tokens,
                 None,
                 None,
                 is_background,
                 &mut background_processes,
                 job_number,
-                false
+                false,
             );
         }
 
-        cmd_history.push(input.trim().to_string());
+        if is_success {
+            cmd_history.push(input.trim().to_string());
+        }
+
         if is_background {
             job_number += 1;
         }

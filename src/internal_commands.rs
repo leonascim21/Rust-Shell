@@ -1,7 +1,7 @@
+use crate::tokenization::get_env_variable;
+use libc::waitpid;
 use std::env::{current_dir, set_current_dir, set_var};
 use std::path::Path;
-use libc::waitpid;
-use crate::tokenization::get_env_variable;
 
 pub(crate) fn jobs(background_processes: &Vec<(i32, String, i32)>) {
     if background_processes.is_empty() {
@@ -16,10 +16,10 @@ pub(crate) fn jobs(background_processes: &Vec<(i32, String, i32)>) {
     }
 }
 
-pub(crate) fn cd(input: &Vec<String>) {
+pub(crate) fn cd(input: &Vec<String>) -> bool {
     if input.len() > 2 {
         println!("Too many arguments provided for cd");
-        return;
+        return false;
     }
 
     let target_dir = if input.len() == 1 {
@@ -31,8 +31,10 @@ pub(crate) fn cd(input: &Vec<String>) {
     let path = Path::new(&target_dir);
     if !path.exists() {
         println!("Target does not exist");
+        return false;
     } else if !path.is_dir() {
-        println!("Target is not a directory")
+        println!("Target is not a directory");
+        return false;
     } else {
         set_current_dir(target_dir).expect("Failed to change directory");
         if let Ok(current_dir) = current_dir() {
@@ -41,6 +43,7 @@ pub(crate) fn cd(input: &Vec<String>) {
             }
         }
     }
+    true
 }
 
 pub(crate) fn exit_shell(cmd_history: Vec<String>, background_processes: Vec<(i32, String, i32)>) {

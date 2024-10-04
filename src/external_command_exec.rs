@@ -1,8 +1,8 @@
+use libc::{close, dup2, execv, exit, fork, waitpid, STDIN_FILENO, STDOUT_FILENO};
 use std::ffi::CString;
 use std::os::fd::RawFd;
-use std::{env, ptr};
 use std::path::Path;
-use libc::{close, dup2, execv, exit, fork, waitpid, STDIN_FILENO, STDOUT_FILENO};
+use std::{env, ptr};
 
 pub(crate) fn external_command(
     input: Vec<String>,
@@ -11,8 +11,9 @@ pub(crate) fn external_command(
     is_background: bool,
     background_processes: &mut Vec<(i32, String, i32)>,
     job_number: i32,
-    piping: bool
-) {
+    piping: bool,
+) -> bool {
+    let mut is_success = true;
     if let Some(path) = find_path(&input[0]) {
         let args_cstr: Vec<CString> = input
             .iter()
@@ -38,9 +39,9 @@ pub(crate) fn external_command(
                     close(fd);
                 }
             }
-
             unsafe { execv(path.as_ptr(), arg_ptrs.as_ptr()) };
             println!("Command execution failed");
+            is_success = false;
             unsafe {
                 exit(1);
             }
@@ -56,10 +57,13 @@ pub(crate) fn external_command(
             }
         } else {
             println!("External Command Failed");
+            is_success = false;
         }
     } else {
         println!("Command Path Not Found");
+        is_success = false;
     }
+    is_success
 }
 
 fn find_path(input: &String) -> Option<CString> {

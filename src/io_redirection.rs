@@ -1,14 +1,14 @@
+use crate::external_command_exec::external_command;
 use std::fs::{File, OpenOptions};
 use std::os::fd::AsRawFd;
 use std::os::unix::fs::OpenOptionsExt;
-use crate::external_command_exec::external_command;
 
 pub(crate) fn io_redirection(
     input: Vec<String>,
     is_background: bool,
     background_processes: &mut Vec<(i32, String, i32)>,
     job_number: i32,
-) {
+) -> bool {
     let mut command = Vec::new();
     let mut input_file = None;
     let mut output_file = None;
@@ -22,7 +22,7 @@ pub(crate) fn io_redirection(
                     input_file = Some(input[i].clone());
                 } else {
                     println!("No input file specified");
-                    return;
+                    return false;
                 }
             }
             ">" => {
@@ -31,7 +31,7 @@ pub(crate) fn io_redirection(
                     output_file = Some(input[i].clone());
                 } else {
                     println!("No output file specified");
-                    return;
+                    return false;
                 }
             }
             _ => {
@@ -43,7 +43,7 @@ pub(crate) fn io_redirection(
 
     if command.is_empty() {
         println!("No Command Provided");
-        return;
+        return false;
     }
 
     let (input_fd, input_file_handle) = if let Some(ref input_filename) = input_file {
@@ -51,7 +51,7 @@ pub(crate) fn io_redirection(
             Ok(file) => (Some(file.as_raw_fd()), Some(file)),
             Err(e) => {
                 println!("Error opening input file: {}", e);
-                return;
+                return false;
             }
         }
     } else {
@@ -69,23 +69,25 @@ pub(crate) fn io_redirection(
             Ok(file) => (Some(file.as_raw_fd()), Some(file)),
             Err(e) => {
                 println!("Error creating output file: {}", e);
-                return;
+                return false;
             }
         }
     } else {
         (None, None)
     };
 
-    external_command(
+    let is_success = external_command(
         command,
         input_fd,
         output_fd,
         is_background,
         background_processes,
         job_number,
-        false
+        false,
     );
 
     drop(input_file_handle);
     drop(output_file_handle);
+
+    is_success
 }
