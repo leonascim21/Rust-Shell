@@ -59,10 +59,10 @@ pub(crate) fn exit_shell(cmd_history: Vec<String>, background_processes: Vec<(i3
     if cmd_history.is_empty() {
         println!("No valid command history")
     } else if cmd_history.len() < 3 {
-        print!("{}", cmd_history[cmd_history.len() - 1]);
+        print!("[1]: {}", cmd_history[cmd_history.len() - 1]);
     } else {
         for i in cmd_history.len() - 3..cmd_history.len() {
-            println!("{}", cmd_history[i]);
+            println!("[{}]: {}", i, cmd_history[i]);
         }
     }
 }
